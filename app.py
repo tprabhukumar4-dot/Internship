@@ -1,7 +1,9 @@
 from flask import Flask, request, jsonify, render_template
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-
+import os
+import base64
+import tempfile
 app = Flask(__name__, template_folder="templates")
 
 # ------------------------
@@ -14,8 +16,27 @@ scope = [
     "https://www.googleapis.com/auth/drive"
 ]
 
-creds = ServiceAccountCredentials.from_json_keyfile_name("inten.json", scope)
+scope = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/drive"
+]
+
+json_b64 = os.environ.get("INTEN_JSON_B64")
+if not json_b64:
+    raise RuntimeError("Missing INTEN_JSON_B64 environment variable for Google service account key")
+
+json_str = base64.b64decode(json_b64).decode('utf-8')
+
+with tempfile.NamedTemporaryFile(mode="w+", delete=False) as temp_file:
+    temp_file.write(json_str)
+    temp_file.flush()
+    creds = ServiceAccountCredentials.from_json_keyfile_name(temp_file.name, scope)
+
 client = gspread.authorize(creds)
+sheet = client.open_by_url(SHEET_URL).sheet1
+
 
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1kiU7qr6syo2OXxon-qIGjXaCdPRKogGhjzW4pQFam0I/edit"
 sheet = client.open_by_url(SHEET_URL).sheet1
@@ -100,3 +121,4 @@ def recommend():
 
 if __name__ == "__main__":
     app.run(debug=True)
+
